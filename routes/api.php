@@ -1,9 +1,11 @@
 <?php
-use App\Http\Controllers\{AdminController, AuthController, KelompokController};
+use App\Http\Controllers\{AdminController, AuthController, KelompokController, MidtransController};
 use App\Http\Middleware\Role;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+
+Route::post('/midtrans/notifikasi', MidtransController::class);
 
 Route::middleware(['auth:sanctum', Role::class . ':admin'])->prefix('admin')->controller(AdminController::class)->group(function () {
     Route::get('dosen', 'dosen'); Route::post('dosen', 'simpanDosen');
