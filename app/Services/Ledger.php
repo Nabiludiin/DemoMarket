@@ -12,7 +12,7 @@ class Ledger {
             if ($baru < 0) throw new \DomainException('Saldo tidak cukup');
             $k->update(['saldo' => $baru]);
             return Transaksi::create(['kelompok_id' => $k->id, 'tipe' => $tipe, 'jumlah' => $jumlah,
-                'saldo_akhir' => $baru, 'ref' => $ref, 'meta' => $meta ?: null, 'oleh' => $oleh ?? auth()->id()]);
+                'saldo_akhir' => $baru, 'ref' => $ref, 'meta' => $meta ?: null, 'oleh' => $oleh ?? auth()->id]);
         });
     }
 }

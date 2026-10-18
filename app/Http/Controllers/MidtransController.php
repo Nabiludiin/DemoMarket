@@ -1,46 +1,100 @@
 <?php
+
 namespace App\Http\Controllers;
-use App\Models\Kelompok;
-use App\Models\NotifikasiMidtrans;
-use App\Services\Ledger;
+
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Models\Transaksi;
+use Midtrans\Config;
+use Midtrans\CoreApi;
 
-class MidtransController extends Controller {
-    public function __invoke(Request $r) {
-        $payload = $r->all();
-        $sig = hash('sha512', $r->order_id . $r->status_code . $r->gross_amount . config('services.midtrans.server_key'));
-        if (!hash_equals($sig, (string) $r->signature_key)) {
-            NotifikasiMidtrans::create(['status' => 'ditolak', 'payload' => $payload]);
-            abort(403, 'Signature tidak valid');
-        }
-
-        $ref = (string) ($r->transaction_id ?? $r->order_id);
-        $jumlah = (int) round((float) $r->gross_amount);
-        if (!in_array($r->transaction_status, ['settlement', 'capture'])) {
-            NotifikasiMidtrans::create(['ref' => $ref, 'status' => 'diabaikan', 'jumlah' => $jumlah, 'payload' => $payload]);
-            return ['ok' => true];
-        }
-        if (NotifikasiMidtrans::where('ref', $ref)->whereIn('status', ['diproses', 'yatim'])->exists())
-            return ['ok' => true, 'duplikat' => true];
-
-        $kunci = config('services.midtrans.qris_field');
-        $qris = $kunci ? data_get($payload, $kunci) : null;
-        $k = $qris ? Kelompok::where('qris_id', $qris)->first() : null;
-
-        DB::transaction(function () use ($k, $ref, $jumlah, $payload) {
-            NotifikasiMidtrans::create(['ref' => $ref, 'status' => $k ? 'diproses' : 'yatim',
-                'jumlah' => $jumlah, 'kelompok_id' => $k?->id, 'payload' => $payload]);
-            if ($k) self::catatPenjualan($k->id, $jumlah, $ref);
-        });
-        return ['ok' => true];
+class MidtransController extends Controller
+{
+    public function __construct()
+    {
+        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+        Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
+        Config::$isSanitized = true;
+        Config::$is3ds = true;
     }
 
-    public static function catatPenjualan(int $kelompokId, int $jumlah, string $ref): void {
-        DB::transaction(function () use ($kelompokId, $jumlah, $ref) {
-            Ledger::catat($kelompokId, 'penjualan', $jumlah, $ref);
-            $biaya = (int) round($jumlah * (float) config('services.midtrans.mdr', 0.007));
-            if ($biaya > 0) Ledger::catat($kelompokId, 'biaya', -$biaya, $ref . '-fee');
-        });
+    public function generateQris(Request $request)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:1000'
+        ]);
+
+        $user = $request->user();
+        $orderId = 'QRIS-' . $user->kelompok_id . '-' . time();
+        $amount = $request->amount;
+
+        $params = [
+            'payment_type' => 'gopay',
+            'transaction_details' => [
+                'order_id' => $orderId,
+                'gross_amount' => $amount,
+            ],
+            'customer_details' => [
+                'first_name' => $user->name,
+            ]
+        ];
+
+        try {
+            $response = CoreApi::charge($params);
+            
+            Transaksi::create([
+                'kelompok_id' => $user->kelompok_id,
+                'order_id' => $orderId,
+                'amount' => $amount,
+                'tipe' => 'qris_in',
+                'status' => 'pending'
+            ]);
+
+            $qrCodeUrl = $response->actions[0]->url;
+
+            return response()->json([
+                'status' => 'success',
+                'qr_url' => $qrCodeUrl,
+                'order_id' => $orderId
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
+    public function callback(Request $request)
+    {
+        $serverKey = env('MIDTRANS_SERVER_KEY');
+        $hashed = hash("sha512", $request->order_id . $request->status_code . $request->gross_amount . $serverKey);
+
+        if ($hashed == $request->signature_key) {
+            $transaksi = Transaksi::where('order_id', $request->order_id)->first();
+            
+            if ($transaksi) {
+                if ($request->transaction_status == 'settlement' || $request->transaction_status == 'capture') {
+                    $transaksi->update(['status' => 'success']);
+                    
+                    $kelompok = \App\Models\Kelompok::find($transaksi->kelompok_id);
+                    if ($kelompok) {
+                        $kelompok->increment('saldo', $transaksi->amount);
+                    }
+                } elseif (in_array($request->transaction_status, ['cancel', 'deny', 'expire'])) {
+                    $transaksi->update(['status' => 'failed']);
+                }
+            }
+        }
+
+        return response()->json(['message' => 'Callback received']);
+    }
+    public static function catatPenjualan(int $kelompok_id, int $amount, $tipe = 'qris_in', $status = 'pending')
+{
+    return Transaksi::create([
+        'kelompok_id' => $kelompok_id,
+        'order_id' => 'TRX-' . $kelompok_id . '-' . time(),
+        'amount' => $amount,
+        'tipe' => $tipe,
+        'status' => $status
+    ]);
+}
 }

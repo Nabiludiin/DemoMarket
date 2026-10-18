@@ -1,106 +1,62 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { api, auth, rp } from '../api';
+import axios from 'axios';
 
 export default function Mahasiswa() {
-  const [d, setD] = useState(null);
-  const [riwayat, setRiwayat] = useState([]);
-  const [jumlah, setJumlah] = useState('');
-  const [bayar, setBayar] = useState('15000');
-  const [pesan, setPesan] = useState('');
-  const [adaGambar, setAdaGambar] = useState(true);
-  const nav = useNavigate();
+    const [amount, setAmount] = useState('');
+    const [qrUrl, setQrUrl] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-  const muat = () => {
-    api('/kelompok-saya').then(setD).catch((e) => setPesan(e.message));
-    api('/kelompok-saya/riwayat').then((r) => setRiwayat(r.data)).catch(() => {});
-  };
-  useEffect(() => { muat(); }, []);
+    const handleGenerateQR = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        setQrUrl('');
+        try {
+            const response = await axios.post('/api/qris/generate', { amount: amount });
+            if (response.data.status === 'success') {
+                setQrUrl(response.data.qr_url);
+            }
+        } catch (err) {
+            setError('Gagal membuat QRIS.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  async function aksi(fn) {
-    setPesan('');
-    try { await fn(); muat(); } catch (e) { setPesan(e.message); }
-  }
-  const tarik = (e) => {
-    e.preventDefault();
-    aksi(async () => {
-      await api('/kelompok-saya/withdraw', 'POST', { jumlah: parseInt(jumlah) || 0 });
-      setJumlah('');
-    });
-  };
-  const kembali = () => aksi(() => api('/kelompok-saya/kembalikan-modal', 'POST'));
-  const simulasi = (e) => {
-    e.preventDefault();
-    aksi(() => api('/kelompok-saya/simulasi-bayar', 'POST', { jumlah: parseInt(bayar) || 0 }));
-  };
-  const keluar = () => { auth.keluar(); nav('/'); };
-
-  if (!d) return <div className="wrap"><p className="err">{pesan || 'Memuat...'}</p></div>;
-  const k = d.kelompok;
-
-  return (
-    <div className="wrap">
-      <header className="atas">
-        <div><h1>{k.nama}</h1><p className="kecil">{k.kelas?.nama}, dosen: {k.kelas?.dosen?.nama || '-'}</p></div>
-        <button className="btn alt" onClick={keluar}>Keluar</button>
-      </header>
-
-      <div className="grid">
-        <div className="kartu"><small>Saldo</small><b>{rp(k.saldo)}</b></div>
-        <div className="kartu"><small>Modal belum kembali</small><b>{rp(d.modal_belum_kembali)}</b></div>
-        <div className="kartu"><small>Bisa ditarik</small><b>{rp(d.bisa_ditarik)}</b></div>
-      </div>
-      {pesan && <p className="err">{pesan}</p>}
-
-      <div className="grid2">
-        <div className="kartu">
-          <h2>QRIS kelompok</h2>
-          <div className="qris">
-            {adaGambar
-              ? <img src={`/qris/${k.qris_id}.png`} alt={'QRIS ' + k.qris_id} onError={() => setAdaGambar(false)} />
-              : <QRCodeSVG value={k.qris_id} />}
-          </div>
-          <p className="kecil">
-            {k.qris_id}
-            {!adaGambar && ' (QR contoh, bukan QRIS asli. Taruh gambar Static QRIS Midtrans di public/qris/' + k.qris_id + '.png)'}
-          </p>
+    return (
+        <div className="min-h-screen bg-gray-100 p-8">
+            <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white p-6 rounded-lg shadow-sm flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-800">Kelompok: Demo Kelompok</h1>
+                        <p className="text-gray-500">Halo, Mahasiswa</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-sm text-gray-500">Saldo Tersedia</p>
+                        <p className="text-3xl font-bold text-emerald-600">Rp 0</p>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 className="text-xl font-semibold mb-4 border-b pb-2">Terima Pembayaran (QRIS)</h2>
+                    <form onSubmit={handleGenerateQR} className="flex gap-4 mb-6">
+                        <div className="flex-1">
+                            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required min="1000" />
+                        </div>
+                        <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors disabled:bg-blue-300">{loading ? 'Memproses...' : 'Generate QR'}</button>
+                    </form>
+                    {error && <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-md">{error}</div>}
+                    {qrUrl && (
+                        <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+                            <p className="mb-4 text-gray-600 font-medium">Scan QRIS di bawah ini:</p>
+                            <div className="p-4 bg-white shadow-sm rounded-xl">
+                                <QRCodeSVG value={qrUrl} size={250} level="H" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
-
-        <div className="kartu">
-          <h2>Simulasi pembeli bayar (mode demo)</h2>
-          <form className="baris" onSubmit={simulasi}>
-            <input type="number" min="1000" step="1000" value={bayar} onChange={(e) => setBayar(e.target.value)} />
-            <button className="btn gold">Pembeli scan dan bayar</button>
-          </form>
-          <p className="kecil">Pembeli mengisi nominal sendiri. Di sistem asli, pembayaran masuk lewat notifikasi Midtrans.</p>
-
-          <h2>Withdraw dan pengembalian modal</h2>
-          <form className="baris" onSubmit={tarik}>
-            <input type="number" min="1" placeholder="Jumlah (Rp)" value={jumlah} onChange={(e) => setJumlah(e.target.value)} />
-            <button className="btn">Withdraw</button>
-          </form>
-          <button className="btn alt" disabled={d.modal_belum_kembali < 1} onClick={kembali}>Kembalikan modal ke BPA</button>
-        </div>
-      </div>
-
-      <div className="panel">
-        <h2>Riwayat transaksi</h2>
-        <div className="scroll">
-          <table>
-            <thead><tr><th>Waktu</th><th>Jenis</th><th>Jumlah</th><th>Saldo akhir</th></tr></thead>
-            <tbody>
-              {riwayat.length === 0 && <tr><td colSpan="4" className="kecil">Belum ada transaksi.</td></tr>}
-              {riwayat.map((t) => (
-                <tr key={t.id}>
-                  <td>{new Date(t.created_at).toLocaleString('id-ID')}</td>
-                  <td>{t.tipe}</td><td>{rp(t.jumlah)}</td><td>{rp(t.saldo_akhir)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+    );
 }
