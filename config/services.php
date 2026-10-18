@@ -39,6 +39,7 @@ return [
         'server_key' => env('MIDTRANS_SERVER_KEY'),
         'mdr' => env('MIDTRANS_MDR', 0.007),
         'qris_field' => env('MIDTRANS_QRIS_FIELD', 'qris_id'),
+        'demo' => env('DEMO_MODE', false),
     ],
 
 ];

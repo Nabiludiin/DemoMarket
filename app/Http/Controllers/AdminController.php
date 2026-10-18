@@ -1,6 +1,12 @@
 <?php
 namespace App\Http\Controllers;
-use App\Models\{Dosen, Kelas, Kelompok, Transaksi, User};
+use Illuminate\Support\Facades\DB;
+use App\Models\Dosen;
+use App\Models\Kelas;
+use App\Models\Kelompok;
+use App\Models\Transaksi;
+use App\Models\User;
+use App\Models\NotifikasiMidtrans;
 use App\Services\Ledger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -42,9 +48,15 @@ class AdminController extends Controller {
         $kelompok->update(['modal_cair_at' => now()]);
         return $kelompok->fresh();
     }
-    public function distribusiSemua() {
+    public function ubahKelas(Request $r, Kelas $kelas) {
+        $kelas->update($r->validate(['dosen_id' => 'nullable|exists:dosens,id']));
+        return $kelas->load('dosen');
+    }
+    public function distribusiSemua(Request $r) {
         $n = 0;
-        Kelompok::whereNull('modal_cair_at')->where('modal', '>', 0)->each(function ($k) use (&$n) { $this->distribusi($k); $n++; });
+        Kelompok::whereNull('modal_cair_at')->where('modal', '>', 0)
+            ->when($r->kelas_id, fn($q, $id) => $q->where('kelas_id', $id))
+            ->each(function ($k) use (&$n) { $this->distribusi($k); $n++; });
         return ['kelompok_didanai' => $n];
     }
     public function topUp(Request $r, Kelompok $kelompok) {
@@ -61,4 +73,15 @@ class AdminController extends Controller {
             'laba_kotor' => $penjualan + $biaya, 'modal_kembali' => -$sum('pengembalian'), 'withdraw' => -$sum('withdraw'),
             'saldo_semua' => (int) Kelompok::sum('saldo')];
     }
+
+    public function notifikasi() { return NotifikasiMidtrans::latest()->limit(30)->get(); }
+public function tetapkan(Request $r, NotifikasiMidtrans $notifikasi) {
+    abort_unless($notifikasi->status === 'yatim', 422, 'Notifikasi ini sudah diproses');
+    $d = $r->validate(['kelompok_id' => 'required|exists:kelompoks,id']);
+    DB::transaction(function () use ($notifikasi, $d) {
+        MidtransController::catatPenjualan($d['kelompok_id'], $notifikasi->jumlah, $notifikasi->ref);
+        $notifikasi->update(['status' => 'diproses', 'kelompok_id' => $d['kelompok_id']]);
+    });
+    return $notifikasi->fresh();
+}
 }

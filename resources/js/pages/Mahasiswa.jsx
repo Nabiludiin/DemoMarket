@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { api, auth, rp } from '../api';
 
 export default function Mahasiswa() {
   const [d, setD] = useState(null);
   const [riwayat, setRiwayat] = useState([]);
   const [jumlah, setJumlah] = useState('');
+  const [bayar, setBayar] = useState('15000');
   const [pesan, setPesan] = useState('');
   const [adaGambar, setAdaGambar] = useState(true);
   const nav = useNavigate();
@@ -28,6 +30,10 @@ export default function Mahasiswa() {
     });
   };
   const kembali = () => aksi(() => api('/kelompok-saya/kembalikan-modal', 'POST'));
+  const simulasi = (e) => {
+    e.preventDefault();
+    aksi(() => api('/kelompok-saya/simulasi-bayar', 'POST', { jumlah: parseInt(bayar) || 0 }));
+  };
   const keluar = () => { auth.keluar(); nav('/'); };
 
   if (!d) return <div className="wrap"><p className="err">{pesan || 'Memuat...'}</p></div>;
@@ -53,16 +59,28 @@ export default function Mahasiswa() {
           <div className="qris">
             {adaGambar
               ? <img src={`/qris/${k.qris_id}.png`} alt={'QRIS ' + k.qris_id} onError={() => setAdaGambar(false)} />
-              : <span>Gambar QRIS statis<br />{k.qris_id}<br /><small>(taruh di public/qris)</small></span>}
+              : <QRCodeSVG value={k.qris_id} />}
           </div>
+          <p className="kecil">
+            {k.qris_id}
+            {!adaGambar && ' (QR contoh, bukan QRIS asli. Taruh gambar Static QRIS Midtrans di public/qris/' + k.qris_id + '.png)'}
+          </p>
         </div>
+
         <div className="kartu">
+          <h2>Simulasi pembeli bayar (mode demo)</h2>
+          <form className="baris" onSubmit={simulasi}>
+            <input type="number" min="1000" step="1000" value={bayar} onChange={(e) => setBayar(e.target.value)} />
+            <button className="btn gold">Pembeli scan dan bayar</button>
+          </form>
+          <p className="kecil">Pembeli mengisi nominal sendiri. Di sistem asli, pembayaran masuk lewat notifikasi Midtrans.</p>
+
           <h2>Withdraw dan pengembalian modal</h2>
           <form className="baris" onSubmit={tarik}>
             <input type="number" min="1" placeholder="Jumlah (Rp)" value={jumlah} onChange={(e) => setJumlah(e.target.value)} />
             <button className="btn">Withdraw</button>
           </form>
-          <button className="btn gold" disabled={d.modal_belum_kembali < 1} onClick={kembali}>Kembalikan modal ke BPA</button>
+          <button className="btn alt" disabled={d.modal_belum_kembali < 1} onClick={kembali}>Kembalikan modal ke BPA</button>
         </div>
       </div>
 

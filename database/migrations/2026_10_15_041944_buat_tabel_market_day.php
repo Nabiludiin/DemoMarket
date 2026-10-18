@@ -29,18 +29,31 @@ return new class extends Migration {
         });
         Schema::create('transaksis', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('kelompok_id')->constrained('kelompoks')->cascadeOnDelete();
+            $t->foreignId('kelompok_id')->constrained('kelompoks')->restrictOnDelete();
             $t->string('tipe');
             $t->bigInteger('jumlah');
             $t->bigInteger('saldo_akhir');
             $t->string('ref')->nullable()->unique();
             $t->json('meta')->nullable();
+            $t->foreignId('oleh')->nullable()->constrained('users')->nullOnDelete();
+            $t->timestamps();
+        });
+
+        Schema::create('notifikasi_midtrans', function (Blueprint $t) {
+            $t->id();
+            $t->string('ref')->nullable()->index();
+            $t->string('status');                       // diproses | yatim | ditolak | diabaikan
+            $t->unsignedBigInteger('jumlah')->default(0);
+            $t->foreignId('kelompok_id')->nullable()->constrained('kelompoks')->nullOnDelete();
+            $t->json('payload');
             $t->timestamps();
         });
     }
     public function down(): void {
         Schema::dropIfExists('transaksis');
         Schema::table('users', function (Blueprint $t) { $t->dropConstrainedForeignId('kelompok_id'); $t->dropColumn('role'); });
-        Schema::dropIfExists('kelompoks'); Schema::dropIfExists('kelas'); Schema::dropIfExists('dosens');
+        Schema::dropIfExists('kelompoks'); 
+        Schema::dropIfExists('kelas'); Schema::dropIfExists('dosens');
+        Schema::dropIfExists('notifikasi_midtrans');
     }
 };

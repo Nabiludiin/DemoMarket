@@ -26,4 +26,11 @@ class KelompokController extends Controller {
         abort_if($j < 1, 422, 'Tidak ada modal yang perlu dikembalikan');
         return Ledger::catat($k->id, 'pengembalian', -$j);
     }
+    public function simulasiBayar(Request $r) {
+        abort_unless(config('services.midtrans.demo') && app()->environment('local'), 403, 'Mode demo tidak aktif');
+        $k = $this->k($r);
+        $j = $r->validate(['jumlah' => 'required|integer|min:1000|max:100000'])['jumlah'];
+        MidtransController::catatPenjualan($k->id, $j, 'DEMO-' . uniqid());
+        return $this->saya($r);
+    }
 }
