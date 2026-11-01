@@ -225,7 +225,7 @@ function Terima({ info, selesai }) {
       {terbayar ? (
         <Berhasil jumlah={terbayar.jumlah} biaya={terbayar.biaya} lagi={ulang} selesai={selesai} />
       ) : tagihan ? (
-        <TampilQr tagihan={tagihan} nama={info.kelompok.nama} batal={ulang} lunas={setTerbayar} />
+        <TampilQr tagihan={tagihan} nama={info.kelompok.nama} demo={info.demo} batal={ulang} lunas={setTerbayar} />
       ) : (
         <IsiNominal info={info} batal={selesai} dibuat={setTagihan} terbayar={setTerbayar} />
       )}
@@ -294,9 +294,19 @@ function IsiNominal({ info, batal, dibuat, terbayar }) {
   );
 }
 
-function TampilQr({ tagihan, nama, batal, lunas }) {
+function TampilQr({ tagihan, nama, demo, batal, lunas }) {
   const [status, setStatus] = useState(tagihan.status);
   const [sisa, setSisa] = useState(() => detikSisa(tagihan));
+  const toast = useToast();
+
+  const salinTautan = async () => {
+    try {
+      await navigator.clipboard.writeText(tagihan.qr_url);
+      toast('Tautan QR disalin');
+    } catch {
+      toast('Gagal menyalin. Salin tautannya dari kolom di layar ini.');
+    }
+  };
 
   useEffect(() => {
     if (status !== 'menunggu') return;
@@ -336,6 +346,18 @@ function TampilQr({ tagihan, nama, batal, lunas }) {
             <span className="size-2 rounded-full bg-[#c98a12] denyut" />
             Menunggu pembayaran · {Math.floor(sisa / 60)}:{String(sisa % 60).padStart(2, '0')}
           </p>
+        )}
+        {demo && tagihan.qr_url && !habis && (
+          <div className="mt-6 w-full max-w-[320px] text-left border-t border-line pt-4">
+            <p className="text-[13px] text-muted mb-2">
+              Mode demo: tempel tautan ini di{' '}
+              <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" rel="noreferrer" className="text-ink underline underline-offset-2">simulator Midtrans</a>.
+            </p>
+            <div className="flex gap-2">
+              <input readOnly aria-label="Tautan QR" value={tagihan.qr_url} onFocus={(e) => e.target.select()} className="w-full min-w-0 h-8 px-2 rounded-md border border-line-strong bg-surface text-xs font-mono" />
+              <Tombol ukuran="sm" onClick={salinTautan}>Salin</Tombol>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -8,7 +8,7 @@ class DemoSeeder extends Seeder {
     public function run(): void {
         $mk = fn($n, $e, $role, $kid = null) => (new User)->forceFill(['name' => $n, 'email' => $e,
             'password' => Hash::make('password'), 'role' => $role, 'kelompok_id' => $kid])->save();
-        $mk('Admin BPA', 'admin@bpa.test', 'admin');
+        $mk('Admin BPA', 'admin@bpa.test', 'password');
 
         $dosen = collect(['Dosen Pengampu A', 'Dosen Pengampu B'])->map(fn($n) => Dosen::create(['nama' => $n]));
         $kelas = $dosen->values()->map(fn($d, $i) => Kelas::create(['nama' => 'Kelas ' . chr(65 + $i), 'dosen_id' => $d->id]));

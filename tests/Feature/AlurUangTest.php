@@ -17,7 +17,9 @@ class AlurUangTest extends TestCase
     use RefreshDatabase;
 
     private Kelompok $kelompok;
+
     private User $admin;
+
     private User $mahasiswa;
 
     protected function setUp(): void
@@ -36,6 +38,7 @@ class AlurUangTest extends TestCase
     {
         $u = new User;
         $u->forceFill(['name' => $email, 'email' => $email, 'password' => 'rahasia', 'role' => $role, 'kelompok_id' => $kelompokId])->save();
+
         return $u;
     }
 
@@ -53,7 +56,7 @@ class AlurUangTest extends TestCase
             'status_code' => '200',
             'gross_amount' => $gross,
             'transaction_status' => $status,
-            'signature_key' => hash('sha512', $orderId . '200' . $gross . 'kunci-tes'),
+            'signature_key' => hash('sha512', $orderId.'200'.$gross.'kunci-tes'),
         ]);
     }
 
@@ -122,6 +125,11 @@ class AlurUangTest extends TestCase
 
         $this->assertSame(0, (int) $this->kelompok->fresh()->saldo);
         $this->assertSame(0, NotifikasiMidtrans::count());
+    }
+
+    public function test_tagihan_baru_langsung_berstatus_menunggu(): void
+    {
+        $this->assertSame('menunggu', $this->tagihan()->status);
     }
 
     public function test_callback_ganda_hanya_menambah_saldo_sekali(): void

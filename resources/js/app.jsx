@@ -17,8 +17,9 @@ function Khusus({ role, children }) {
 
 const el = document.getElementById('app');
 if (el) {
-    const root = createRoot(el);
-    root.render(
+    // Vite bisa menjalankan ulang file ini saat dev, jadi root yang sudah ada dipakai lagi.
+    el._root ??= createRoot(el);
+    el._root.render(
         <BrowserRouter>
             <PenyediaToast>
                 <Routes>
