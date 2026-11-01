@@ -5,12 +5,14 @@ use App\Http\Middleware\Role;
 use Illuminate\Support\Facades\Route;
 
 // Auth & Midtrans
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::post('/midtrans/callback', [MidtransController::class, 'callback']);
 
-// Endpoint Generate QRIS dari frontend
-Route::middleware(['auth:sanctum'])->group(function () {
+// Endpoint QRIS dari frontend
+Route::middleware(['auth:sanctum', Role::class . ':mahasiswa'])->group(function () {
     Route::post('/qris/generate', [MidtransController::class, 'generateQris']);
+    Route::get('/qris/{orderId}', [MidtransController::class, 'statusTagihan']);
 });
 
 // Endpoint Admin
@@ -25,7 +27,9 @@ Route::middleware(['auth:sanctum', Role::class . ':admin'])->prefix('admin')->co
     Route::post('distribusi-semua', 'distribusiSemua');
     Route::post('kelompok/{kelompok}/topup', 'topUp');
     Route::get('kelompok/{kelompok}/riwayat', 'riwayat');
+    Route::get('ringkasan', 'ringkasan');
     Route::get('laporan', 'laporan');
+    Route::get('laporan/kelompok', 'laporanKelompok');
     Route::get('notifikasi', 'notifikasi');
     Route::post('notifikasi/{notifikasi}/tetapkan', 'tetapkan');
 });

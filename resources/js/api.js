@@ -21,9 +21,39 @@ export async function api(path, method = 'GET', body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) { auth.keluar(); window.location.href = '/'; }
-  if (!res.ok) throw new Error(data.message || 'Terjadi kesalahan');
+  if (res.status === 401 && auth.token) { auth.keluar(); window.location.href = '/login'; }
+  if (res.status === 429) throw new Error('Terlalu banyak percobaan. Tunggu satu menit lalu coba lagi.');
+  if (!res.ok) throw new Error(data.message || 'Terjadi kesalahan. Coba lagi.');
   return data;
 }
 
-export const rp = (n) => 'Rp' + Number(n || 0).toLocaleString('id-ID');
+export async function keluar() {
+  await api('/logout', 'POST').catch(() => {});
+  auth.keluar();
+  window.location.href = '/login';
+}
+
+export const rp = (n) => 'Rp' + Math.abs(Number(n || 0)).toLocaleString('id-ID');
+
+export const rpTanda = (n) => (Number(n) > 0 ? '+' : Number(n) < 0 ? '−' : '') + rp(n);
+
+export const LABEL_TIPE = {
+  modal: 'Modal dari BPA',
+  topup: 'Top up dari BPA',
+  penjualan: 'Penjualan QRIS',
+  biaya: 'Biaya QRIS',
+  pengembalian: 'Pengembalian modal',
+  withdraw: 'Penarikan saldo',
+};
+
+export const jam = (t) => new Date(t).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+export const tanggal = (t) => new Date(t).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+
+export function hari(t) {
+  const d = new Date(t), kini = new Date(), kemarin = new Date();
+  kemarin.setDate(kini.getDate() - 1);
+  if (d.toDateString() === kini.toDateString()) return 'Hari ini';
+  if (d.toDateString() === kemarin.toDateString()) return 'Kemarin';
+  return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+}

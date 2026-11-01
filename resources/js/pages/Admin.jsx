@@ -1,70 +1,56 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { api, auth, keluar } from '../api';
+import { Tombol, useMuat } from '../ui';
+import Kelompok from './admin/Kelompok';
+import KelompokDetail from './admin/KelompokDetail';
+import KelasDosen from './admin/KelasDosen';
+import Laporan from './admin/Laporan';
+import Notifikasi from './admin/Notifikasi';
 
 export default function Admin() {
-    const [selectedKelompok, setSelectedKelompok] = useState('');
-    const [modalAmount, setModalAmount] = useState('');
-    
-    const daftarKelompok = [
-        { id: 1, nama_kelompok: 'Kelompok 1', saldo: 500000 },
-        { id: 2, nama_kelompok: 'Kelompok 2', saldo: 750000 }
-    ];
+  const { pathname } = useLocation();
+  const ringkas = useMuat(() => api('/admin/ringkasan'), [pathname]);
+  const yatim = ringkas.data?.notifikasi_yatim ?? 0;
 
-    const handleDistribusiModal = (e) => {
-        e.preventDefault();
-    };
+  const tautan = ({ isActive }) =>
+    `flex items-center justify-between gap-2 h-9 px-3 rounded-md text-sm whitespace-nowrap ${isActive ? 'bg-line/70 font-medium' : 'text-muted hover:text-ink hover:bg-line/40'}`;
 
-    return (
-        <div className="min-h-screen bg-gray-100 p-8">
-            <div className="max-w-6xl mx-auto space-y-6">
-                <div className="bg-white p-6 rounded-lg shadow-sm">
-                    <h1 className="text-2xl font-bold text-gray-800">Dashboard Admin (BPA)</h1>
-                    <p className="text-gray-500">Selamat datang, Admin BPA</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white p-6 rounded-lg shadow-sm">
-                        <h2 className="text-xl font-semibold mb-4 border-b pb-2">Distribusi Modal (Endowment)</h2>
-                        <form onSubmit={handleDistribusiModal} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Kelompok</label>
-                                <select className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" value={selectedKelompok} onChange={(e) => setSelectedKelompok(e.target.value)} required>
-                                    <option value="">-- Pilih Kelompok --</option>
-                                    {daftarKelompok.map((klp) => (
-                                        <option key={klp.id} value={klp.id}>{klp.nama_kelompok}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nominal Modal</label>
-                                <input type="number" value={modalAmount} onChange={(e) => setModalAmount(e.target.value)} className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" required />
-                            </div>
-                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors">Kirim Modal</button>
-                        </form>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-sm">
-                        <h2 className="text-xl font-semibold mb-4 border-b pb-2">Monitoring Kelompok</h2>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50">
-                                        <th className="p-3 border-b">Nama Kelompok</th>
-                                        <th className="p-3 border-b">Total Saldo</th>
-                                        <th className="p-3 border-b">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {daftarKelompok.map((klp) => (
-                                        <tr key={klp.id} className="hover:bg-gray-50">
-                                            <td className="p-3 border-b">{klp.nama_kelompok}</td>
-                                            <td className="p-3 border-b font-medium text-emerald-600">Rp {klp.saldo.toLocaleString('id-ID')}</td>
-                                            <td className="p-3 border-b"><span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Aktif</span></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  return (
+    <div className="lg:grid lg:grid-cols-[216px_1fr] min-h-dvh">
+      <aside className="lg:sticky lg:top-0 lg:h-dvh flex flex-col border-b lg:border-b-0 lg:border-r border-line px-3 lg:py-4">
+        <div className="flex items-center justify-between h-13 lg:h-auto lg:mb-6 px-1 lg:px-3">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <span aria-hidden className="size-2.5 bg-brand" />
+            Market Day
+          </p>
+          <Tombol varian="hantu" ukuran="sm" className="lg:hidden" onClick={keluar}>Keluar</Tombol>
         </div>
-    );
+        <nav aria-label="Utama" className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0 -mx-1 px-1">
+          <NavLink to="/admin" end className={tautan}>Kelompok</NavLink>
+          <NavLink to="/admin/kelas" className={tautan}>Kelas &amp; dosen</NavLink>
+          <NavLink to="/admin/laporan" className={tautan}>Laporan</NavLink>
+          <NavLink to="/admin/notifikasi" className={tautan}>
+            Pembayaran masuk
+            {yatim > 0 && <span className="text-xs font-medium text-tunggu bg-tunggu-soft rounded px-1.5" aria-label={`${yatim} perlu ditetapkan`}>{yatim}</span>}
+          </NavLink>
+        </nav>
+        <div className="hidden lg:block mt-auto px-3">
+          <p className="text-[13px] truncate">{auth.nama}</p>
+          <button onClick={keluar} className="text-[13px] text-muted hover:text-ink">Keluar</button>
+        </div>
+      </aside>
+      <main className="min-w-0 px-4 sm:px-8 py-6 lg:py-8">
+        <div className="max-w-[1120px] mx-auto">
+          <Routes>
+            <Route index element={<Kelompok />} />
+            <Route path="kelompok/:id" element={<KelompokDetail />} />
+            <Route path="kelas" element={<KelasDosen />} />
+            <Route path="laporan" element={<Laporan />} />
+            <Route path="notifikasi" element={<Notifikasi />} />
+          </Routes>
+        </div>
+      </main>
+    </div>
+  );
 }

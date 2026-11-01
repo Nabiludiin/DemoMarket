@@ -1,9 +1,90 @@
+@import '@fontsource-variable/public-sans';
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+    --color-ink: #16181c;
+    --color-muted: #5c636d;
+    --color-faint: #868d97;
+    --color-line: #e2e4e7;
+    --color-line-strong: #c9cdd3;
+    --color-canvas: #f5f5f3;
+    --color-surface: #ffffff;
+    --color-brand: #b4182d;
+    /* Hijau hanya untuk uang masuk; merah hanya untuk galat, bukan uang keluar. */
+    --color-masuk: #0b7349;
+    --color-masuk-soft: #e7f3ed;
+    --color-galat: #b3261e;
+    --color-galat-soft: #fbeeed;
+    --color-tunggu: #80570a;
+    --color-tunggu-soft: #fbf3e0;
+}
+
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+    }
+    body {
+        background: var(--color-canvas);
+        color: var(--color-ink);
+        font-size: 15px;
+        line-height: 1.5;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+    }
+    :focus-visible {
+        outline: 2px solid var(--color-ink);
+        outline-offset: 2px;
+    }
+    button:not(:disabled),
+    summary,
+    select {
+        cursor: pointer;
+    }
+    dialog {
+        margin: auto;
+        padding: 0;
+        width: min(440px, calc(100vw - 32px));
+        max-height: calc(100dvh - 32px);
+        border-radius: 10px;
+        background: var(--color-surface);
+        color: var(--color-ink);
+        box-shadow: 0 20px 50px rgb(16 18 22 / 0.22);
+    }
+    dialog::backdrop {
+        background: rgb(16 18 22 / 0.45);
+    }
+    /* Di ponsel dialog jadi lembar dari bawah supaya tombolnya terjangkau jempol. */
+    @media (max-width: 639px) {
+        dialog {
+            margin: auto 0 0;
+            width: 100%;
+            max-width: 100%;
+            border-radius: 14px 14px 0 0;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .muncul {
+        animation: muncul 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes muncul {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+    }
+    .denyut {
+        animation: denyut 1.6s ease-in-out infinite;
+    }
+    @keyframes denyut {
+        50% {
+            opacity: 0.3;
+        }
+    }
 }

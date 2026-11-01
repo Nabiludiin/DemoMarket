@@ -11,4 +11,8 @@ class AuthController extends Controller {
             return response()->json(['message' => 'Email atau kata sandi salah'], 422);
         return ['token' => $u->createToken('web')->plainTextToken, 'role' => $u->role, 'nama' => $u->name];
     }
+    public function logout(Request $r) {
+        $r->user()->currentAccessToken()->delete();
+        return response()->noContent();
+    }
 }

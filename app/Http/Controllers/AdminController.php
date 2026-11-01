@@ -31,8 +31,20 @@ class AdminController extends Controller {
     }
 
     public function kelompok(Request $r) {
-        return Kelompok::with('kelas.dosen')->when($r->kelas_id, fn($q, $id) => $q->where('kelas_id', $id))
+        return Kelompok::with('kelas.dosen')->withCount('anggota')
+            ->when($r->kelas_id, fn($q, $id) => $q->where('kelas_id', $id))
+            ->when($r->q, fn($q, $cari) => $q->where(fn($w) => $w->where('nama', 'like', "%$cari%")->orWhere('qris_id', 'like', "%$cari%")))
+            ->when($r->status === 'belum_cair', fn($q) => $q->whereNull('modal_cair_at'))
+            ->when($r->status === 'cair', fn($q) => $q->whereNotNull('modal_cair_at'))
             ->orderBy('id')->paginate(50);
+    }
+
+    public function ringkasan(Request $r) {
+        $q = fn() => Kelompok::query()->when($r->kelas_id, fn($q, $id) => $q->where('kelas_id', $id));
+        $siap = fn() => $q()->whereNull('modal_cair_at')->where('modal', '>', 0);
+        return ['kelompok' => $q()->count(), 'sudah_cair' => $q()->whereNotNull('modal_cair_at')->count(),
+            'siap_cair' => $siap()->count(), 'modal_siap_cair' => (int) $siap()->sum('modal'), 'saldo' => (int) $q()->sum('saldo'),
+            'notifikasi_yatim' => NotifikasiMidtrans::where('status', 'yatim')->count()];
     }
     
     public function simpanKelompok(Request $r) {
@@ -55,10 +67,19 @@ class AdminController extends Controller {
         return $kelompok;
     }
     
+    // Dicek ulang di dalam lock supaya klik ganda tidak mencairkan modal dua kali.
+    private function cairkan(int $id): bool {
+        return DB::transaction(function () use ($id) {
+            $k = Kelompok::lockForUpdate()->findOrFail($id);
+            if (!is_null($k->modal_cair_at) || $k->modal < 1) return false;
+            Ledger::catat($k->id, 'modal', $k->modal);
+            $k->update(['modal_cair_at' => now()]);
+            return true;
+        });
+    }
+
     public function distribusi(Kelompok $kelompok) {
-        abort_if(!is_null($kelompok->modal_cair_at) || $kelompok->modal < 1, 422, 'Modal kosong atau sudah didistribusikan');
-        Ledger::catat($kelompok->id, 'modal', $kelompok->modal);
-        $kelompok->update(['modal_cair_at' => now()]);
+        abort_unless($this->cairkan($kelompok->id), 422, 'Modal kosong atau sudah didistribusikan');
         return $kelompok->fresh();
     }
     
@@ -68,17 +89,11 @@ class AdminController extends Controller {
     }
     
     public function distribusiSemua(Request $r) {
-        $n = 0;
-        $kelompoks = Kelompok::whereNull('modal_cair_at')->where('modal', '>', 0)
+        $ids = Kelompok::whereNull('modal_cair_at')->where('modal', '>', 0)
             ->when($r->kelas_id, fn($q, $id) => $q->where('kelas_id', $id))
-            ->get();
-            
-        foreach ($kelompoks as $k) { 
-            $this->distribusi($k); 
-            $n++; 
-        }
-        
-        return ['kelompok_didanai' => $n];
+            ->pluck('id');
+
+        return ['kelompok_didanai' => $ids->filter(fn($id) => $this->cairkan($id))->count()];
     }
     
     public function topUp(Request $r, Kelompok $kelompok) {
@@ -87,19 +102,35 @@ class AdminController extends Controller {
     }
 
     public function riwayat(Kelompok $kelompok) { 
-        return ['kelompok' => $kelompok, 'transaksi' => $kelompok->transaksis()->paginate(50)]; 
+        $kelompok->load('kelas.dosen', 'anggota:id,name,email,kelompok_id');
+        return ['kelompok' => $kelompok, 'modal_belum_kembali' => $kelompok->modalBelumKembali(), 'bisa_ditarik' => $kelompok->bisaDitarik(),
+            'transaksi' => $kelompok->transaksis()->latest()->latest('id')->paginate(30)];
     }
     
     public function laporan() {
         $sum = fn($tipe) => (int) Transaksi::where('tipe', $tipe)->sum('jumlah');
         $penjualan = $sum('penjualan'); $biaya = $sum('biaya');
-        return ['modal_tersalur' => $sum('modal'), 'penjualan' => $penjualan, 'biaya_midtrans' => -$biaya,
+        return ['modal_tersalur' => $sum('modal'), 'topup' => $sum('topup'), 'penjualan' => $penjualan, 'biaya_midtrans' => -$biaya,
             'laba_kotor' => $penjualan + $biaya, 'modal_kembali' => -$sum('pengembalian'), 'withdraw' => -$sum('withdraw'),
             'saldo_semua' => (int) Kelompok::sum('saldo')];
     }
 
-    public function notifikasi() { 
-        return NotifikasiMidtrans::latest()->limit(30)->get(); 
+    public function laporanKelompok(Request $r) {
+        $jumlah = fn($tipe) => fn($q) => $q->whereIn('tipe', (array) $tipe);
+        return Kelompok::with('kelas:id,nama')
+            ->withSum(['transaksis as penjualan' => $jumlah('penjualan')], 'jumlah')
+            ->withSum(['transaksis as biaya' => $jumlah('biaya')], 'jumlah')
+            ->withSum(['transaksis as laba' => $jumlah(['penjualan', 'biaya'])], 'jumlah')
+            ->withSum(['transaksis as dikembalikan' => $jumlah('pengembalian')], 'jumlah')
+            ->withSum(['transaksis as ditarik' => $jumlah('withdraw')], 'jumlah')
+            ->when($r->kelas_id, fn($q, $id) => $q->where('kelas_id', $id))
+            ->orderByDesc('laba')->orderBy('id')->paginate(50);
+    }
+
+    // Yang masih perlu tindakan admin ditampilkan paling atas.
+    public function notifikasi() {
+        return NotifikasiMidtrans::orderByRaw("case when status = 'yatim' then 0 else 1 end")->latest()->latest('id')->limit(50)
+            ->get(['id', 'ref', 'status', 'jumlah', 'kelompok_id', 'created_at']);
     }
     
     public function tetapkan(Request $r, NotifikasiMidtrans $notifikasi) {

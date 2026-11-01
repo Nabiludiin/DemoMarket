@@ -15,7 +15,7 @@ class Kelompok extends Model
     }
     public function transaksis() 
     { 
-        return $this->hasMany(Transaksi::class)->latest();
+        return $this->hasMany(Transaksi::class);
     }
 
     public function modalBelumKembali(): int 
